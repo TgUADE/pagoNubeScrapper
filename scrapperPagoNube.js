@@ -25,7 +25,7 @@ function generateToken() {
 // Hace todo el flujo de login y captura el header
 async function fetchAuthToken() {
   const browser = await puppeteer.launch({
-    headless: true,
+    headless: "shell",
     args: ["--no-sandbox", "--disable-setuid-sandbox"],
   });
 
