@@ -24,10 +24,12 @@ function generateToken() {
 
 // Hace todo el flujo de login y captura el header
 async function fetchAuthToken() {
-  const browser = await puppeteer.launch({
-    headless: "shell",
-    args: ["--no-sandbox", "--disable-setuid-sandbox"],
-  });
+  // const browser = await puppeteer.launch({
+  //   headless: "shell",
+  //   args: ["--no-sandbox", "--disable-setuid-sandbox"],
+  // });
+
+  const browser = await puppeteer.launch({args: ['--no-sandbox']});
 
   try {
     const page = await browser.newPage();
@@ -84,7 +86,7 @@ app.use(express.json());
 app.post("/token", async (_req, res) => {
   console.log("📬 POST /token recibido, iniciando login…");
   let attempt = 0;
-  while (true) {
+  while (attempt < 5) {
     attempt++;
     try {
       console.log(`🔄 Intento #${attempt}`);
