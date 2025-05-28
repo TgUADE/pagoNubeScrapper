@@ -12,6 +12,12 @@ if (!USER_EMAIL || !USER_PASSWORD || !TOKEN_CODE) {
   process.exit(1);
 }
 
+console.log("🔐 === VERIFICACIÓN DE CREDENCIALES ===");
+console.log(`📧 Email configurado: ${USER_EMAIL}`);
+console.log(`🔑 Password configurado: ${USER_PASSWORD ? `${USER_PASSWORD.substring(0, 3)}***` : 'NO CONFIGURADO'}`);
+console.log(`🎫 Token code configurado: ${TOKEN_CODE ? `${TOKEN_CODE.substring(0, 8)}***` : 'NO CONFIGURADO'}`);
+console.log("🔐 === FIN VERIFICACIÓN DE CREDENCIALES ===");
+
 // Genera el código TOTP
 function generateToken() {
   try {
@@ -31,9 +37,34 @@ async function fetchAuthToken() {
   
   // Configuración del browser - usar headless: false para debug
   const browserOptions = {
-    args: ['--no-sandbox'],
+    args: [
+      '--no-sandbox',
+      '--disable-setuid-sandbox',
+      '--disable-dev-shm-usage',
+      '--disable-accelerated-2d-canvas',
+      '--no-first-run',
+      '--no-zygote',
+      '--disable-gpu',
+      '--disable-web-security',
+      '--disable-features=VizDisplayCompositor',
+      '--disable-blink-features=AutomationControlled', // Importante para evitar detección
+      '--disable-extensions',
+      '--disable-plugins',
+      '--disable-images', // Acelerar carga
+      '--disable-javascript-harmony-shipping',
+      '--disable-background-timer-throttling',
+      '--disable-backgrounding-occluded-windows',
+      '--disable-renderer-backgrounding',
+      '--disable-field-trial-config',
+      '--disable-back-forward-cache',
+      '--disable-ipc-flooding-protection'
+    ],
     headless: process.env.DEBUG_MODE !== 'true', // Si DEBUG_MODE=true, mostrar browser
-    slowMo: process.env.DEBUG_MODE === 'true' ? 100 : 0 // Ralentizar en modo debug
+    slowMo: process.env.DEBUG_MODE === 'true' ? 100 : 50, // Siempre un poco de delay para parecer humano
+    defaultViewport: {
+      width: 1366,
+      height: 768
+    }
   };
   
   const browser = await puppeteer.launch(browserOptions);
@@ -42,6 +73,57 @@ async function fetchAuthToken() {
   try {
     const page = await browser.newPage();
     console.log("📄 Nueva página creada");
+    
+    // Configuraciones anti-detección de bots
+    console.log("🤖 Configurando anti-detección de bots...");
+    
+    // Establecer user agent realista
+    await page.setUserAgent('Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36');
+    
+    // Establecer viewport
+    await page.setViewport({ width: 1366, height: 768 });
+    
+    // Ocultar que es un navegador automatizado
+    await page.evaluateOnNewDocument(() => {
+      // Eliminar la propiedad webdriver
+      Object.defineProperty(navigator, 'webdriver', {
+        get: () => undefined,
+      });
+      
+      // Sobrescribir la propiedad plugins
+      Object.defineProperty(navigator, 'plugins', {
+        get: () => [1, 2, 3, 4, 5],
+      });
+      
+      // Sobrescribir la propiedad languages
+      Object.defineProperty(navigator, 'languages', {
+        get: () => ['es-ES', 'es', 'en'],
+      });
+      
+      // Agregar propiedades de Chrome
+      window.chrome = {
+        runtime: {},
+      };
+      
+      // Sobrescribir permisos
+      const originalQuery = window.navigator.permissions.query;
+      return window.navigator.permissions.query = (parameters) => (
+        parameters.name === 'notifications' ?
+          Promise.resolve({ state: 'granted' }) :
+          originalQuery(parameters)
+      );
+    });
+    
+    // Establecer headers adicionales
+    await page.setExtraHTTPHeaders({
+      'Accept-Language': 'es-ES,es;q=0.9,en;q=0.8',
+      'Accept-Encoding': 'gzip, deflate, br',
+      'Accept': 'text/html,application/xhtml+xml,application/xml;q=0.9,image/webp,image/apng,*/*;q=0.8',
+      'Upgrade-Insecure-Requests': '1',
+      'Cache-Control': 'max-age=0'
+    });
+    
+    console.log("✅ Configuración anti-detección completada");
     
     let authHeader = null;
 
@@ -101,26 +183,93 @@ async function fetchAuthToken() {
     console.log("✅ Selector de password encontrado");
 
     console.log(`📝 Escribiendo email: ${USER_EMAIL}`);
-    await page.type("#user-mail", USER_EMAIL, { delay: 100 });
+    await page.click("#user-mail"); // Click primero para enfocar
+    await new Promise(r => setTimeout(r, 200 + Math.random() * 300)); // Delay aleatorio
+    await page.type("#user-mail", USER_EMAIL, { delay: 50 + Math.random() * 100 }); // Delay variable entre teclas
     console.log("✅ Email escrito");
 
     console.log("📝 Escribiendo password...");
-    await page.type("#pass", USER_PASSWORD, { delay: 100 });
+    await page.click("#pass"); // Click primero para enfocar
+    await new Promise(r => setTimeout(r, 200 + Math.random() * 300)); // Delay aleatorio
+    await page.type("#pass", USER_PASSWORD, { delay: 50 + Math.random() * 100 }); // Delay variable entre teclas
     console.log("✅ Password escrito");
 
-    console.log("🔍 Verificando botón de login: .js-tkit-loading-button");
+    // Simular movimiento de mouse antes del click
+    console.log("🖱️ Simulando movimiento de mouse...");
     const loginButton = await page.$('.js-tkit-loading-button');
+    
+    console.log("🔍 Verificando botón de login: .js-tkit-loading-button");
     if (!loginButton) {
       throw new Error("❌ Botón de login .js-tkit-loading-button no encontrado");
     }
     console.log("✅ Botón de login encontrado");
+    
+    const buttonBox = await loginButton.boundingBox();
+    if (buttonBox) {
+      // Mover el mouse a una posición aleatoria cerca del botón
+      await page.mouse.move(
+        buttonBox.x + buttonBox.width * (0.3 + Math.random() * 0.4),
+        buttonBox.y + buttonBox.height * (0.3 + Math.random() * 0.4)
+      );
+      await new Promise(r => setTimeout(r, 100 + Math.random() * 200));
+    }
 
     console.log("🖱️ Haciendo click en botón de login...");
-    await Promise.all([
-      page.click(".js-tkit-loading-button"),
-      page.waitForNavigation({ waitUntil: "networkidle2" }),
-    ]);
-    console.log("✅ Login completado, navegación exitosa");
+    await page.click(".js-tkit-loading-button");
+    
+    // Esperar a que la página procese el login
+    console.log("⏳ Esperando respuesta del login...");
+    await new Promise(r => setTimeout(r, 3000));
+    
+    // Verificar si el login fue exitoso
+    const currentUrlAfterLogin = page.url();
+    console.log(`🔗 URL después del login: ${currentUrlAfterLogin}`);
+    
+    // Si seguimos en la página de login, verificar si hay errores
+    if (currentUrlAfterLogin.includes('/login')) {
+      console.log("⚠️ Aún estamos en la página de login, verificando errores...");
+      
+      // Buscar mensajes de error
+      const errorMessages = await page.evaluate(() => {
+        const errorElements = document.querySelectorAll('.alert-danger, .error, .alert-error, [class*="error"], [class*="danger"]');
+        return Array.from(errorElements).map(el => el.textContent.trim()).filter(text => text.length > 0);
+      });
+      
+      if (errorMessages.length > 0) {
+        console.error("❌ Errores encontrados en el login:");
+        errorMessages.forEach(msg => console.error(`   - ${msg}`));
+        throw new Error(`Login falló: ${errorMessages.join(', ')}`);
+      }
+      
+      // Verificar si los campos aún están presentes (indica que el login no fue exitoso)
+      const emailField = await page.$('#user-mail');
+      const passField = await page.$('#pass');
+      
+      if (emailField && passField) {
+        // Verificar el contenido de los campos para asegurar que se llenaron correctamente
+        const emailValue = await page.$eval('#user-mail', el => el.value);
+        const passValue = await page.$eval('#pass', el => el.value);
+        
+        console.log(`📧 Email en el campo: ${emailValue}`);
+        console.log(`🔐 Password length: ${passValue.length} caracteres`);
+        
+        if (!emailValue || !passValue) {
+          throw new Error("Los campos de email o password están vacíos después del intento de login");
+        }
+        
+        // Intentar hacer click nuevamente, a veces el primer click no funciona
+        console.log("🔄 Reintentando click en botón de login...");
+        await page.click(".js-tkit-loading-button");
+        await new Promise(r => setTimeout(r, 5000)); // Esperar más tiempo
+        
+        const urlAfterRetry = page.url();
+        if (urlAfterRetry.includes('/login')) {
+          throw new Error("Login falló - credenciales incorrectas o problema con el sitio");
+        }
+      }
+    }
+    
+    console.log("✅ Login completado exitosamente");
 
     // Mostrar contenido después del login
     console.log("📄 === CONTENIDO DESPUÉS DEL LOGIN ===");
@@ -160,7 +309,9 @@ async function fetchAuthToken() {
       console.log("✅ Selector de código 2FA encontrado");
 
       console.log(`📝 Escribiendo código 2FA: ${code2FA}`);
-      await page.type("#code", code2FA, { delay: 100 });
+      await page.click("#code"); // Click primero para enfocar
+      await new Promise(r => setTimeout(r, 200 + Math.random() * 300)); // Delay aleatorio
+      await page.type("#code", code2FA, { delay: 100 + Math.random() * 150 }); // Delay variable entre teclas
       console.log("✅ Código 2FA escrito");
 
       console.log("🔍 Verificando botón de verificación 2FA: #authentication-factor-verify-page input[type='submit']");
@@ -170,12 +321,24 @@ async function fetchAuthToken() {
       }
       console.log("✅ Botón de verificación 2FA encontrado");
 
+      // Simular movimiento de mouse antes del click del 2FA
+      console.log("🖱️ Simulando movimiento de mouse para 2FA...");
+      const verifyButtonBox = await verifyButton.boundingBox();
+      if (verifyButtonBox) {
+        await page.mouse.move(
+          verifyButtonBox.x + verifyButtonBox.width * (0.3 + Math.random() * 0.4),
+          verifyButtonBox.y + verifyButtonBox.height * (0.3 + Math.random() * 0.4)
+        );
+        await new Promise(r => setTimeout(r, 100 + Math.random() * 200));
+      }
+
       console.log("🖱️ Haciendo click en botón de verificación 2FA...");
-      await Promise.all([
-        page.click("#authentication-factor-verify-page input[type='submit']"),
-        page.waitForNavigation({ waitUntil: "networkidle2" }),
-      ]);
-      console.log("✅ 2FA completado, navegación exitosa");
+      await page.click("#authentication-factor-verify-page input[type='submit']");
+      
+      // Esperar a que procese el 2FA
+      console.log("⏳ Esperando procesamiento de 2FA...");
+      await new Promise(r => setTimeout(r, 3000));
+      console.log("✅ 2FA completado");
 
       // Mostrar contenido después del 2FA
       console.log("📄 === CONTENIDO DESPUÉS DEL 2FA ===");
@@ -301,8 +464,10 @@ async function fetchAuthToken() {
     throw error;
   } finally {
     console.log("🔒 Cerrando browser...");
-    await browser.close();
-    console.log("✅ Browser cerrado");
+    if (browser) {
+      await browser.close();
+      console.log("✅ Browser cerrado");
+    }
   }
 }
 
