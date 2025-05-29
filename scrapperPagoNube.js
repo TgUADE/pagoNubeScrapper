@@ -63,13 +63,22 @@ async function loadCookies(page) {
 }
 
 // Función para verificar si las cookies son válidas
-async function verifyCookiesValid(page) {
+async function verifyCookiesValid(page, authHeaderRef) {
   try {
     console.log("🔍 Verificando validez de las cookies...");
     
     // Navegar al dashboard para verificar si estamos logueados
     const dashboardUrl = "https://perlastore6.mitiendanube.com/admin/v2/apps/envionube/ar/dashboard";
     await page.goto(dashboardUrl, { waitUntil: "networkidle2", timeout: 30000 });
+    
+    // Esperar un poco para que se carguen las requests
+    await new Promise(r => setTimeout(r, 3000));
+    
+    // Si se capturó el token durante la navegación, las cookies son válidas
+    if (authHeaderRef.value) {
+      console.log("✅ Cookies válidas - token capturado durante verificación");
+      return true;
+    }
     
     // Verificar si estamos en una página de login o en el dashboard
     const currentUrl = page.url();
@@ -212,7 +221,6 @@ async function fetchAuthToken() {
     console.log("🔄 Intentando con configuración básica...");
     const basicOptions = {
       args: ['--no-sandbox', '--disable-setuid-sandbox', '--disable-dev-shm-usage'],
-      headless: process.env.DEBUG_MODE !== 'true',
       slowMo: process.env.DEBUG_MODE === 'true' ? 100 : 0,
       ignoreHTTPSErrors: true
     };
@@ -396,9 +404,12 @@ async function fetchAuthToken() {
     };
     
     let authHeader = null;
+    
+    // Crear objeto de referencia para poder pasarlo a funciones
+    const authHeaderRef = { value: null };
 
     // Interceptamos la request de orders y otras requests de API
-    page.on("request", (req) => {
+    page.on("request", async(req) => {
       const url = req.url();
       
       // Buscar requests que puedan contener el token de autorización
@@ -411,8 +422,12 @@ async function fetchAuthToken() {
         const authHeaderValue = req.headers().authorization;
         if (authHeaderValue && !authHeader) {
           authHeader = authHeaderValue;
+          authHeaderRef.value = authHeaderValue; // También actualizar la referencia
           console.log(`✅ Header Authorization capturado: ${authHeader.substring(0, 20)}...`);
           console.log(`🎯 URL que proporcionó el token: ${url.substring(0, 100)}...`);
+
+          //Guardar cookies actuales
+          await saveCookies(page);
         } else if (!authHeaderValue) {
           console.log("⚠️ Request sin header Authorization");
         } else if (authHeader) {
@@ -427,7 +442,7 @@ async function fetchAuthToken() {
     
     if (cookiesLoaded) {
       console.log("🔍 Verificando si las cookies son válidas...");
-      const cookiesValid = await verifyCookiesValid(page);
+      const cookiesValid = await verifyCookiesValid(page, authHeaderRef);
       
       if (cookiesValid) {
         console.log("🎉 ¡Cookies válidas! Usando sesión existente...");
@@ -444,13 +459,6 @@ async function fetchAuthToken() {
         while (attempts < maxAttempts && !authHeader) {
           await new Promise((r) => setTimeout(r, 1000));
           attempts++;
-          
-          // Verificar inmediatamente si se capturó el token
-          if (authHeader) {
-            console.log("✅ Token capturado usando cookies!");
-            console.log("🎉 Proceso completado exitosamente usando cookies guardadas");
-            return authHeader;
-          }
           
           const currentContent = await page.evaluate(() => document.body.innerText);
           const isStillLoading = currentContent.trim() === "Cargando......" || currentContent.trim() === "...";
@@ -500,6 +508,8 @@ async function fetchAuthToken() {
               return authHeader;
             }
           }
+        }else{
+          return authHeader;
         }
       }
       
