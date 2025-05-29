@@ -1,28 +1,35 @@
-# nixpacks.toml
-
 [phases.setup]
-# conservamos los paquetes auto-detectados ("...")
-# y añadimos Chrome + las libs que Puppeteer/Chromium necesita
-nixPkgs = ["...", "chromium"]         # para tener el binario de Chromium
+# Conservamos los auto-detectados ("...") y añadimos TODO en nixPkgs
+nixPkgs = [
+  "..."             # tus otros paquetes
+  "chromium"        # para el binario de Chromium
+  "alsaLib"         # libasound2
+  "atk"             # libatk1.0-0
+  "atk_bridge"      # libatk-bridge2.0-0
+  "cups"            # libcups2
+  "gdk_pixbuf"      # libgdk-pixbuf2.0-0
+  "glib"            # libglib2.0-0
+  "gtk3"            # libgtk-3-0
+  "nspr"            # libnspr4
+  "nss"             # libnss3
+  "pango"           # libpangocairo-1.0-0
+  "libX11"          # libx11-6
+  "libX11_xcb"      # libx11-xcb1
+  "libXcomposite"   # libxcomposite1
+  "libXcursor"      # libxcursor1
+  "libXdamage"      # libxdamage1
+  "libXfixes"       # libxfixes3
+  "libXi"           # libxi6
+  "libXrandr"       # libxrandr2
+  "libXrender"      # libxrender1
+  "libXss"          # libxss1
+  "libXtst"         # libxtst6
+  "xdg_utils"       # xdg-utils
+  "fonts_liberation" # fonts-liberation
+]
+
+# Ya no hace falta aptPkgs para estas libs, pero lo dejamos 
+# si de verdad necesitas algo que NO esté en Nix.
 aptPkgs = [
-  "...",
-  "fonts-liberation",
-  "libappindicator3-1",
-  "libasound2",
-  "libatk-bridge2.0-0",
-  "libatk1.0-0",
-  "libgbm1",
-  "libgtk-3-0",
-  "libnspr4",
-  "libnss3",
-  "libx11-xcb1",
-  "libxcomposite1",
-  "libxcursor1",
-  "libxdamage1",
-  "libxfixes3",
-  "libxi6",
-  "libxrandr2",
-  "libxss1",
-  "libxtst6",
-  "xdg-utils"
+  "..."  
 ]
