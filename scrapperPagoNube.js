@@ -2,6 +2,8 @@
 "use strict";
 require("dotenv").config();
 const express = require("express");
+const fs = require("fs").promises;
+const path = require("path");
 
 // Usar puppeteer-extra con plugins GRATUITOS para bypass de reCAPTCHA
 const puppeteer = require('puppeteer-extra');
@@ -27,6 +29,84 @@ console.log("🔐 === FIN VERIFICACIÓN DE CREDENCIALES ===");
 // Configurar plugins de puppeteer-extra (SOLO GRATUITOS)
 puppeteer.use(StealthPlugin());
 console.log("🛡️ Plugin Stealth configurado (técnicas gratuitas de evasión)");
+
+// Archivo para guardar las cookies
+const COOKIES_FILE = path.join(__dirname, 'session_cookies.json');
+
+// Función para guardar cookies
+async function saveCookies(page) {
+  try {
+    const cookies = await page.cookies();
+    await fs.writeFile(COOKIES_FILE, JSON.stringify(cookies, null, 2));
+    console.log(`🍪 Cookies guardadas en ${COOKIES_FILE} (${cookies.length} cookies)`);
+  } catch (error) {
+    console.error("❌ Error guardando cookies:", error.message);
+  }
+}
+
+// Función para cargar cookies
+async function loadCookies(page) {
+  try {
+    const cookiesData = await fs.readFile(COOKIES_FILE, 'utf8');
+    const cookies = JSON.parse(cookiesData);
+    
+    if (cookies && cookies.length > 0) {
+      await page.setCookie(...cookies);
+      console.log(`🍪 Cookies cargadas desde ${COOKIES_FILE} (${cookies.length} cookies)`);
+      return true;
+    }
+    return false;
+  } catch (error) {
+    console.log("ℹ️ No se pudieron cargar cookies (archivo no existe o está corrupto):", error.message);
+    return false;
+  }
+}
+
+// Función para verificar si las cookies son válidas
+async function verifyCookiesValid(page) {
+  try {
+    console.log("🔍 Verificando validez de las cookies...");
+    
+    // Navegar al dashboard para verificar si estamos logueados
+    const dashboardUrl = "https://perlastore6.mitiendanube.com/admin/v2/apps/envionube/ar/dashboard";
+    await page.goto(dashboardUrl, { waitUntil: "networkidle2", timeout: 30000 });
+    
+    // Verificar si estamos en una página de login o en el dashboard
+    const currentUrl = page.url();
+    console.log(`🔗 URL después de verificar cookies: ${currentUrl}`);
+    
+    // Si la URL contiene "login" significa que las cookies no son válidas
+    if (currentUrl.includes('login') || currentUrl.includes('signin')) {
+      console.log("❌ Cookies inválidas - redirigido a login");
+      return false;
+    }
+    
+    // Verificar si hay contenido del dashboard
+    const pageContent = await page.evaluate(() => document.body.innerText);
+    
+    // Si el contenido indica que estamos logueados
+    if (pageContent.includes('Dashboard') || pageContent.includes('Cargando') || !pageContent.includes('Iniciar sesión')) {
+      console.log("✅ Cookies válidas - sesión activa");
+      return true;
+    }
+    
+    console.log("❌ Cookies inválidas - contenido no corresponde a sesión activa");
+    return false;
+  } catch (error) {
+    console.error("❌ Error verificando cookies:", error.message);
+    return false;
+  }
+}
+
+// Función para eliminar cookies inválidas
+async function deleteCookiesFile() {
+  try {
+    await fs.unlink(COOKIES_FILE);
+    console.log("🗑️ Archivo de cookies eliminado");
+  } catch (error) {
+    console.log("ℹ️ No se pudo eliminar archivo de cookies (puede que no exista)");
+  }
+}
 
 // Genera el código TOTP
 function generateToken() {
@@ -326,19 +406,111 @@ async function fetchAuthToken() {
           url.includes("/api/") || 
           url.includes("/admin/") ||
           url.includes("envionube")) {
-        console.log(`�� Request detectada: ${url.substring(0, 80)}...`);
+        console.log(`🌐 Request detectada: ${url.substring(0, 80)}...`);
         
         const authHeaderValue = req.headers().authorization;
         if (authHeaderValue && !authHeader) {
           authHeader = authHeaderValue;
           console.log(`✅ Header Authorization capturado: ${authHeader.substring(0, 20)}...`);
+          console.log(`🎯 URL que proporcionó el token: ${url.substring(0, 100)}...`);
         } else if (!authHeaderValue) {
           console.log("⚠️ Request sin header Authorization");
+        } else if (authHeader) {
+          console.log("ℹ️ Token ya capturado previamente, ignorando request");
         }
       }
     });
 
-    // 1) Login
+    // 🍪 PASO 0: Intentar usar cookies existentes
+    console.log("🍪 PASO 0: Verificando cookies existentes...");
+    const cookiesLoaded = await loadCookies(page);
+    
+    if (cookiesLoaded) {
+      console.log("🔍 Verificando si las cookies son válidas...");
+      const cookiesValid = await verifyCookiesValid(page);
+      
+      if (cookiesValid) {
+        console.log("🎉 ¡Cookies válidas! Usando sesión existente...");
+        
+        // Verificar reCAPTCHA en el dashboard
+        await solveRecaptchaIfPresent();
+        
+        // Esperar a que la aplicación se cargue y capturar el token
+        console.log("⏳ Esperando a que la aplicación se cargue con cookies...");
+        
+        let attempts = 0;
+        const maxAttempts = 20; // 20 segundos máximo
+        
+        while (attempts < maxAttempts && !authHeader) {
+          await new Promise((r) => setTimeout(r, 1000));
+          attempts++;
+          
+          // Verificar inmediatamente si se capturó el token
+          if (authHeader) {
+            console.log("✅ Token capturado usando cookies!");
+            console.log("🎉 Proceso completado exitosamente usando cookies guardadas");
+            return authHeader;
+          }
+          
+          const currentContent = await page.evaluate(() => document.body.innerText);
+          const isStillLoading = currentContent.trim() === "Cargando......" || currentContent.trim() === "...";
+          
+          console.log(`⏳ Intento ${attempts}/${maxAttempts} - Contenido: ${isStillLoading ? 'Aún cargando...' : 'Aplicación cargada'} - Token: ${authHeader ? 'CAPTURADO' : 'No capturado'}`);
+          
+          if (authHeader) {
+            console.log("✅ Token capturado usando cookies!");
+            console.log("🎉 Proceso completado exitosamente usando cookies guardadas");
+            return authHeader;
+          }
+          
+          if (!isStillLoading && !authHeader) {
+            console.log("🔄 Aplicación cargada, esperando requests de API...");
+            await new Promise((r) => setTimeout(r, 2000));
+            
+            // Verificar nuevamente después de la espera adicional
+            if (authHeader) {
+              console.log("✅ Token capturado usando cookies (después de espera adicional)!");
+              console.log("🎉 Proceso completado exitosamente usando cookies guardadas");
+              return authHeader;
+            }
+          }
+        }
+        
+        if (!authHeader) {
+          console.log("⚠️ No se pudo capturar token con cookies, intentando refresh...");
+          await page.reload({ waitUntil: "networkidle2", timeout: 60000 });
+          await new Promise((r) => setTimeout(r, 3000));
+          
+          // Verificar reCAPTCHA después del refresh
+          await solveRecaptchaIfPresent();
+          
+          // Esperar un poco más después del refresh
+          console.log("⏳ Esperando después del refresh...");
+          let refreshAttempts = 0;
+          const maxRefreshAttempts = 10; // 10 segundos más
+          
+          while (refreshAttempts < maxRefreshAttempts && !authHeader) {
+            await new Promise((r) => setTimeout(r, 1000));
+            refreshAttempts++;
+            console.log(`⏳ Refresh intento ${refreshAttempts}/${maxRefreshAttempts} - Token: ${authHeader ? 'CAPTURADO' : 'No capturado'}`);
+            
+            if (authHeader) {
+              console.log("✅ Token capturado después del refresh!");
+              console.log("🎉 Proceso completado exitosamente usando cookies guardadas (después de refresh)");
+              return authHeader;
+            }
+          }
+        }
+      }
+      
+      // Si llegamos aquí, las cookies no funcionaron
+      console.log("❌ Las cookies no funcionaron, eliminando archivo y haciendo login completo...");
+      await deleteCookiesFile();
+    } else {
+      console.log("ℹ️ No hay cookies guardadas, procediendo con login completo...");
+    }
+
+    // 🔑 FLUJO COMPLETO DE LOGIN (solo si las cookies no funcionaron)
     console.log("🔑 PASO 1: Navegando a página de login...");
     await page.goto("https://www.tiendanube.com/login", {
       waitUntil: "networkidle2",
@@ -502,6 +674,10 @@ async function fetchAuthToken() {
       console.log("📄 === FIN CONTENIDO SIN 2FA ===");
     }
 
+    // 🍪 GUARDAR COOKIES después del login exitoso
+    console.log("🍪 Guardando cookies después del login exitoso...");
+    await saveCookies(page);
+
     // 3) Navegar al dashboard (lanza la petición)
     console.log("🏠 PASO 3: Navegando al dashboard...");
     const dashboardUrl = "https://perlastore6.mitiendanube.com/admin/v2/apps/envionube/ar/dashboard";
@@ -584,6 +760,10 @@ async function fetchAuthToken() {
   } catch (error) {
     console.error("💥 Error en fetchAuthToken:", error.message);
     console.error("📍 Stack trace:", error.stack);
+    
+    // Si hay error, eliminar cookies por si están corruptas
+    console.log("🗑️ Eliminando cookies por posible corrupción...");
+    await deleteCookiesFile();
     
     // Mostrar contenido de la página donde falló
     try {
