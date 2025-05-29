@@ -2,7 +2,13 @@
 "use strict";
 require("dotenv").config();
 const express = require("express");
-const puppeteer = require("puppeteer");
+
+// Usar puppeteer-extra con plugins GRATUITOS para bypass de reCAPTCHA
+const puppeteer = require('puppeteer-extra');
+const StealthPlugin = require('puppeteer-extra-plugin-stealth');
+const randomUseragent = require('random-useragent');
+const UserAgent = require('user-agents');
+
 const { authenticator } = require("otplib");
 
 const { USER_EMAIL, USER_PASSWORD, TOKEN_CODE, PORT = 3000 } = process.env;
@@ -17,6 +23,10 @@ console.log(`📧 Email configurado: ${USER_EMAIL}`);
 console.log(`🔑 Password configurado: ${USER_PASSWORD ? `${USER_PASSWORD.substring(0, 3)}***` : 'NO CONFIGURADO'}`);
 console.log(`🎫 Token code configurado: ${TOKEN_CODE ? `${TOKEN_CODE.substring(0, 8)}***` : 'NO CONFIGURADO'}`);
 console.log("🔐 === FIN VERIFICACIÓN DE CREDENCIALES ===");
+
+// Configurar plugins de puppeteer-extra (SOLO GRATUITOS)
+puppeteer.use(StealthPlugin());
+console.log("🛡️ Plugin Stealth configurado (técnicas gratuitas de evasión)");
 
 // Genera el código TOTP
 function generateToken() {
@@ -35,95 +45,276 @@ function generateToken() {
 async function fetchAuthToken() {
   console.log("🚀 Iniciando proceso de autenticación...");
   
-  // Configuración del browser - usar headless: false para debug
+  // Verificar entorno
+  console.log("🔍 === VERIFICACIÓN DEL ENTORNO ===");
+  console.log(`🐧 Sistema operativo: ${process.platform}`);
+  console.log(`📁 Directorio actual: ${process.cwd()}`);
+  console.log(`🔧 Variables de entorno relevantes:`);
+  console.log(`   - DISPLAY: ${process.env.DISPLAY || 'No configurado'}`);
+  console.log(`   - DEBUG_MODE: ${process.env.DEBUG_MODE || 'No configurado'}`);
+  console.log(`   - NODE_ENV: ${process.env.NODE_ENV || 'No configurado'}`);
+  console.log("🔍 === FIN VERIFICACIÓN DEL ENTORNO ===");
+  
+  // Configuración del browser - equilibrada entre anti-detección y funcionalidad
+  console.log("🛡️ Configurando browser con técnicas anti-detección equilibradas...");
+  
+  // Generar user agent aleatorio pero realista
+  const userAgent = new UserAgent();
+  const randomUA = userAgent.toString();
+  console.log(`🎭 User Agent aleatorio: ${randomUA}`);
+  
+  // Viewport aleatorio para parecer más humano
+  const randomViewport = {
+    width: 1920 + Math.floor(Math.random() * 100),
+    height: 1080 + Math.floor(Math.random() * 100),
+    deviceScaleFactor: 1,
+    hasTouch: false,
+    isLandscape: false,
+    isMobile: false,
+  };
+  console.log(`📱 Viewport aleatorio: ${randomViewport.width}x${randomViewport.height}`);
+  
   const browserOptions = {
     args: [
       '--no-sandbox',
       '--disable-setuid-sandbox',
       '--disable-dev-shm-usage',
-      '--disable-accelerated-2d-canvas',
-      '--no-first-run',
-      '--no-zygote',
-      '--disable-gpu',
-      '--disable-web-security',
-      '--disable-features=VizDisplayCompositor',
-      '--disable-blink-features=AutomationControlled', // Importante para evitar detección
+      '--disable-blink-features=AutomationControlled', // Crítico para evitar detección
       '--disable-extensions',
       '--disable-plugins',
-      '--disable-images', // Acelerar carga
-      '--disable-javascript-harmony-shipping',
       '--disable-background-timer-throttling',
       '--disable-backgrounding-occluded-windows',
       '--disable-renderer-backgrounding',
-      '--disable-field-trial-config',
-      '--disable-back-forward-cache',
-      '--disable-ipc-flooding-protection'
+      '--disable-hang-monitor',
+      '--disable-prompt-on-repost',
+      '--disable-sync',
+      '--disable-translate',
+      '--disable-default-apps',
+      '--disable-component-extensions-with-background-pages',
+      '--disable-background-networking',
+      '--disable-component-update',
+      '--disable-client-side-phishing-detection',
+      '--disable-datasaver-prompt',
+      '--disable-domain-reliability',
+      '--disable-features=TranslateUI',
+      '--mute-audio',
+      '--no-default-browser-check',
+      '--no-pings',
+      '--password-store=basic',
+      '--use-mock-keychain',
+      // Argumentos adicionales para bypass de detección
+      '--disable-automation',
+      '--exclude-switches=enable-automation',
+      '--disable-extensions-http-throttling',
+      '--metrics-recording-only',
+      '--no-report-upload',
+      '--safebrowsing-disable-auto-update'
     ],
-    headless: process.env.DEBUG_MODE !== 'true', // Si DEBUG_MODE=true, mostrar browser
-    slowMo: process.env.DEBUG_MODE === 'true' ? 100 : 50, // Siempre un poco de delay para parecer humano
-    defaultViewport: {
-      width: 1366,
-      height: 768
-    }
+    headless: process.env.DEBUG_MODE !== 'true' ? 'new' : false, // Si DEBUG_MODE=true, mostrar browser
+    slowMo: process.env.DEBUG_MODE === 'true' ? 100 : 50 + Math.floor(Math.random() * 50), // Delay aleatorio para parecer humano
+    defaultViewport: randomViewport,
+    ignoreDefaultArgs: ['--disable-extensions', '--enable-automation'], // Permitir extensiones
+    ignoreHTTPSErrors: true,
+    timeout: 60000,
+    devtools: false,
   };
   
-  const browser = await puppeteer.launch(browserOptions);
-  console.log("🌐 Browser lanzado exitosamente");
+  console.log("🚀 Intentando lanzar browser con configuración anti-detección equilibrada...");
+  
+  let browser;
+  try {
+    browser = await puppeteer.launch(browserOptions);
+    console.log("🌐 Browser lanzado exitosamente");
+  } catch (launchError) {
+    console.error("💥 Error al lanzar el browser:", launchError.message);
+    console.error("📍 Stack trace del error de lanzamiento:", launchError.stack);
+    
+    // Intentar con configuración más básica para Docker
+    console.log("🔄 Intentando con configuración básica...");
+    const basicOptions = {
+      args: ['--no-sandbox', '--disable-setuid-sandbox', '--disable-dev-shm-usage'],
+      headless: process.env.DEBUG_MODE !== 'true',
+      slowMo: process.env.DEBUG_MODE === 'true' ? 100 : 0,
+      ignoreHTTPSErrors: true
+    };
+    
+    try {
+      browser = await puppeteer.launch(basicOptions);
+      console.log("🌐 Browser lanzado exitosamente con configuración básica");
+    } catch (basicError) {
+      console.error("💀 Error crítico: No se pudo lanzar el browser ni con configuración básica");
+      console.error("📍 Error básico:", basicError.message);
+      throw new Error(`No se pudo lanzar el browser: ${basicError.message}`);
+    }
+  }
 
   try {
     const page = await browser.newPage();
     console.log("📄 Nueva página creada");
     
-    // Configuraciones anti-detección de bots
-    console.log("🤖 Configurando anti-detección de bots...");
+    // Configuraciones anti-detección de bots - TÉCNICAS EQUILIBRADAS
+    console.log("🤖 Configurando anti-detección de bots con técnicas equilibradas...");
     
-    // Establecer user agent realista
-    await page.setUserAgent('Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36');
+    // Establecer user agent aleatorio
+    await page.setUserAgent(randomUA);
     
-    // Establecer viewport
-    await page.setViewport({ width: 1366, height: 768 });
-    
-    // Ocultar que es un navegador automatizado
+    // TÉCNICA 1: Ocultar que es un navegador automatizado
     await page.evaluateOnNewDocument(() => {
-      // Eliminar la propiedad webdriver
+      // Pass webdriver check - Eliminar la propiedad webdriver
       Object.defineProperty(navigator, 'webdriver', {
         get: () => undefined,
       });
       
-      // Sobrescribir la propiedad plugins
-      Object.defineProperty(navigator, 'plugins', {
-        get: () => [1, 2, 3, 4, 5],
-      });
-      
-      // Sobrescribir la propiedad languages
-      Object.defineProperty(navigator, 'languages', {
-        get: () => ['es-ES', 'es', 'en'],
-      });
-      
-      // Agregar propiedades de Chrome
+      // Eliminar propiedades de automatización
+      delete window.webdriver;
+      delete window.__webdriver_evaluate;
+      delete window.__selenium_evaluate;
+      delete window.__webdriver_script_function;
+      delete window.__webdriver_script_func;
+      delete window.__webdriver_script_fn;
+      delete window.__fxdriver_evaluate;
+      delete window.__driver_unwrapped;
+      delete window.__webdriver_unwrapped;
+      delete window.__driver_evaluate;
+      delete window.__selenium_unwrapped;
+      delete window.__fxdriver_unwrapped;
+    });
+
+    // TÉCNICA 2: Pass chrome check - Agregar propiedades de Chrome
+    await page.evaluateOnNewDocument(() => {
       window.chrome = {
         runtime: {},
+        loadTimes: function() {},
+        csi: function() {},
+        app: {}
       };
-      
-      // Sobrescribir permisos
+    });
+
+    // TÉCNICA 3: Pass notifications check - Sobrescribir permisos
+    await page.evaluateOnNewDocument(() => {
       const originalQuery = window.navigator.permissions.query;
       return window.navigator.permissions.query = (parameters) => (
         parameters.name === 'notifications' ?
-          Promise.resolve({ state: 'granted' }) :
+          Promise.resolve({ state: Notification.permission }) :
           originalQuery(parameters)
       );
     });
-    
-    // Establecer headers adicionales
-    await page.setExtraHTTPHeaders({
-      'Accept-Language': 'es-ES,es;q=0.9,en;q=0.8',
-      'Accept-Encoding': 'gzip, deflate, br',
-      'Accept': 'text/html,application/xhtml+xml,application/xml;q=0.9,image/webp,image/apng,*/*;q=0.8',
-      'Upgrade-Insecure-Requests': '1',
-      'Cache-Control': 'max-age=0'
+
+    // TÉCNICA 4: Pass plugins check - Sobrescribir la propiedad plugins
+    await page.evaluateOnNewDocument(() => {
+      Object.defineProperty(navigator, 'plugins', {
+        get: () => [1, 2, 3, 4, 5],
+      });
+    });
+
+    // TÉCNICA 5: Pass languages check - Sobrescribir la propiedad languages
+    await page.evaluateOnNewDocument(() => {
+      Object.defineProperty(navigator, 'languages', {
+        get: () => ['es-ES', 'es', 'en-US', 'en'],
+      });
     });
     
-    console.log("✅ Configuración anti-detección completada");
+    // TÉCNICA 6: Configurar headers HTTP realistas
+    await page.setExtraHTTPHeaders({
+      'Accept-Language': 'es-ES,es;q=0.9,en-US;q=0.8,en;q=0.7',
+      'Accept-Encoding': 'gzip, deflate, br',
+      'Accept': 'text/html,application/xhtml+xml,application/xml;q=0.9,image/webp,image/apng,*/*;q=0.8,application/signed-exchange;v=b3;q=0.9',
+      'Upgrade-Insecure-Requests': '1',
+      'Cache-Control': 'max-age=0',
+      'Sec-Fetch-Site': 'none',
+      'Sec-Fetch-Mode': 'navigate',
+      'Sec-Fetch-User': '?1',
+      'Sec-Fetch-Dest': 'document'
+    });
+    
+    console.log("✅ Configuración anti-detección equilibrada completada");
+    
+    // TÉCNICA 7: Función para detectar y evadir reCAPTCHA (SOLO MÉTODOS GRATUITOS)
+    const solveRecaptchaIfPresent = async () => {
+      try {
+        console.log("🔍 Verificando presencia de reCAPTCHA...");
+        
+        // Buscar diferentes tipos de reCAPTCHA
+        const recaptchaSelectors = [
+          'iframe[src*="recaptcha"]',
+          '.g-recaptcha',
+          '#recaptcha',
+          '[data-sitekey]',
+          '.recaptcha-checkbox',
+          '.rc-anchor-container',
+          '.rc-imageselect',
+          '#recaptcha-anchor',
+          '.recaptcha-checkbox-border'
+        ];
+        
+        let recaptchaFound = false;
+        
+        for (const selector of recaptchaSelectors) {
+          const element = await page.$(selector);
+          if (element) {
+            console.log(`🎯 reCAPTCHA detectado con selector: ${selector}`);
+            recaptchaFound = true;
+            break;
+          }
+        }
+        
+        if (recaptchaFound) {
+          console.log("🔓 Intentando evadir reCAPTCHA con técnicas gratuitas...");
+          
+          // TÉCNICA 1: Esperar y verificar si se resuelve automáticamente
+          console.log("⏳ Esperando resolución automática...");
+          await new Promise(r => setTimeout(r, 3000 + Math.random() * 2000));
+          
+          // TÉCNICA 2: Simular interacciones humanas sutiles
+          console.log("🖱️ Simulando interacciones humanas...");
+          
+          // Movimientos de mouse aleatorios sobre la página
+          for (let i = 0; i < 3; i++) {
+            const x = Math.random() * 800;
+            const y = Math.random() * 600;
+            await page.mouse.move(x, y);
+            await new Promise(r => setTimeout(r, 500 + Math.random() * 1000));
+          }
+          
+          // TÉCNICA 3: Intentar hacer click en checkbox si es reCAPTCHA v2
+          try {
+            const checkboxSelectors = [
+              '.recaptcha-checkbox-border',
+              '.rc-anchor-checkbox',
+              '#recaptcha-anchor',
+              '.recaptcha-checkbox'
+            ];
+            
+            for (const selector of checkboxSelectors) {
+              const checkbox = await page.$(selector);
+              if (checkbox) {
+                console.log(`☑️ Intentando click en checkbox: ${selector}`);
+                
+                // Simular hover antes del click
+                await page.hover(selector);
+                await new Promise(r => setTimeout(r, 500 + Math.random() * 500));
+                
+                // Click con delay humano
+                await page.click(selector);
+                await new Promise(r => setTimeout(r, 1000 + Math.random() * 1000));
+                
+                console.log("✅ Click en checkbox realizado");
+                break;
+              }
+            }
+          } catch (err) {
+            console.log("⚠️ No se pudo hacer click en checkbox:", err.message);
+          }
+          
+          console.log("✅ reCAPTCHA procesado");
+        } else {
+          console.log("✅ No se detectó reCAPTCHA");
+        }
+      } catch (error) {
+        console.log("⚠️ Error al verificar/evadir reCAPTCHA:", error.message);
+        // No lanzar error, continuar con el flujo
+      }
+    };
     
     let authHeader = null;
 
@@ -136,7 +327,7 @@ async function fetchAuthToken() {
           url.includes("/api/") || 
           url.includes("/admin/") ||
           url.includes("envionube")) {
-        console.log(`🎯 Request detectada: ${url.substring(0, 80)}...`);
+        console.log(`�� Request detectada: ${url.substring(0, 80)}...`);
         
         const authHeaderValue = req.headers().authorization;
         if (authHeaderValue && !authHeader) {
@@ -152,8 +343,12 @@ async function fetchAuthToken() {
     console.log("🔑 PASO 1: Navegando a página de login...");
     await page.goto("https://www.tiendanube.com/login", {
       waitUntil: "networkidle2",
+      timeout: 60000
     });
     console.log("✅ Página de login cargada");
+    
+    // Verificar y resolver reCAPTCHA si está presente
+    await solveRecaptchaIfPresent();
 
     // Mostrar contenido de la página de login
     console.log("📄 === CONTENIDO PÁGINA DE LOGIN ===");
@@ -183,93 +378,39 @@ async function fetchAuthToken() {
     console.log("✅ Selector de password encontrado");
 
     console.log(`📝 Escribiendo email: ${USER_EMAIL}`);
-    await page.click("#user-mail"); // Click primero para enfocar
-    await new Promise(r => setTimeout(r, 200 + Math.random() * 300)); // Delay aleatorio
-    await page.type("#user-mail", USER_EMAIL, { delay: 50 + Math.random() * 100 }); // Delay variable entre teclas
+    // Simular comportamiento humano más realista pero sin ser demasiado lento
+    await page.hover("#user-mail"); // Hover antes del click
+    await new Promise(r => setTimeout(r, 100 + Math.random() * 200));
+    await page.click("#user-mail"); // Click para enfocar
+    await new Promise(r => setTimeout(r, 200 + Math.random() * 300)); // Delay realista
+    await page.type("#user-mail", USER_EMAIL, { delay: 50 + Math.random() * 50 });
     console.log("✅ Email escrito");
 
     console.log("📝 Escribiendo password...");
-    await page.click("#pass"); // Click primero para enfocar
-    await new Promise(r => setTimeout(r, 200 + Math.random() * 300)); // Delay aleatorio
-    await page.type("#pass", USER_PASSWORD, { delay: 50 + Math.random() * 100 }); // Delay variable entre teclas
+    // Simular comportamiento humano para password
+    await page.hover("#pass"); // Hover antes del click
+    await new Promise(r => setTimeout(r, 100 + Math.random() * 200));
+    await page.click("#pass"); // Click para enfocar
+    await new Promise(r => setTimeout(r, 200 + Math.random() * 300)); // Delay realista
+    await page.type("#pass", USER_PASSWORD, { delay: 50 + Math.random() * 50 });
     console.log("✅ Password escrito");
-
-    // Simular movimiento de mouse antes del click
-    console.log("🖱️ Simulando movimiento de mouse...");
-    const loginButton = await page.$('.js-tkit-loading-button');
     
+    // Verificar reCAPTCHA antes del submit
+    await solveRecaptchaIfPresent();
+
     console.log("🔍 Verificando botón de login: .js-tkit-loading-button");
+    const loginButton = await page.$('.js-tkit-loading-button');
     if (!loginButton) {
       throw new Error("❌ Botón de login .js-tkit-loading-button no encontrado");
     }
     console.log("✅ Botón de login encontrado");
-    
-    const buttonBox = await loginButton.boundingBox();
-    if (buttonBox) {
-      // Mover el mouse a una posición aleatoria cerca del botón
-      await page.mouse.move(
-        buttonBox.x + buttonBox.width * (0.3 + Math.random() * 0.4),
-        buttonBox.y + buttonBox.height * (0.3 + Math.random() * 0.4)
-      );
-      await new Promise(r => setTimeout(r, 100 + Math.random() * 200));
-    }
 
     console.log("🖱️ Haciendo click en botón de login...");
-    await page.click(".js-tkit-loading-button");
-    
-    // Esperar a que la página procese el login
-    console.log("⏳ Esperando respuesta del login...");
-    await new Promise(r => setTimeout(r, 3000));
-    
-    // Verificar si el login fue exitoso
-    const currentUrlAfterLogin = page.url();
-    console.log(`🔗 URL después del login: ${currentUrlAfterLogin}`);
-    
-    // Si seguimos en la página de login, verificar si hay errores
-    if (currentUrlAfterLogin.includes('/login')) {
-      console.log("⚠️ Aún estamos en la página de login, verificando errores...");
-      
-      // Buscar mensajes de error
-      const errorMessages = await page.evaluate(() => {
-        const errorElements = document.querySelectorAll('.alert-danger, .error, .alert-error, [class*="error"], [class*="danger"]');
-        return Array.from(errorElements).map(el => el.textContent.trim()).filter(text => text.length > 0);
-      });
-      
-      if (errorMessages.length > 0) {
-        console.error("❌ Errores encontrados en el login:");
-        errorMessages.forEach(msg => console.error(`   - ${msg}`));
-        throw new Error(`Login falló: ${errorMessages.join(', ')}`);
-      }
-      
-      // Verificar si los campos aún están presentes (indica que el login no fue exitoso)
-      const emailField = await page.$('#user-mail');
-      const passField = await page.$('#pass');
-      
-      if (emailField && passField) {
-        // Verificar el contenido de los campos para asegurar que se llenaron correctamente
-        const emailValue = await page.$eval('#user-mail', el => el.value);
-        const passValue = await page.$eval('#pass', el => el.value);
-        
-        console.log(`📧 Email en el campo: ${emailValue}`);
-        console.log(`🔐 Password length: ${passValue.length} caracteres`);
-        
-        if (!emailValue || !passValue) {
-          throw new Error("Los campos de email o password están vacíos después del intento de login");
-        }
-        
-        // Intentar hacer click nuevamente, a veces el primer click no funciona
-        console.log("🔄 Reintentando click en botón de login...");
-        await page.click(".js-tkit-loading-button");
-        await new Promise(r => setTimeout(r, 5000)); // Esperar más tiempo
-        
-        const urlAfterRetry = page.url();
-        if (urlAfterRetry.includes('/login')) {
-          throw new Error("Login falló - credenciales incorrectas o problema con el sitio");
-        }
-      }
-    }
-    
-    console.log("✅ Login completado exitosamente");
+    await Promise.all([
+      page.click(".js-tkit-loading-button"),
+      page.waitForNavigation({ waitUntil: "networkidle2", timeout: 60000 }),
+    ]);
+    console.log("✅ Login completado, navegación exitosa");
 
     // Mostrar contenido después del login
     console.log("📄 === CONTENIDO DESPUÉS DEL LOGIN ===");
@@ -300,6 +441,9 @@ async function fetchAuthToken() {
     if (codeSelector || authFactorPage) {
       console.log("🔐 Se detectó página de 2FA, procediendo con verificación...");
       
+      // Verificar reCAPTCHA en página de 2FA
+      await solveRecaptchaIfPresent();
+      
       const code2FA = generateToken();
       
       console.log("🔍 Verificando selector de código 2FA: #code");
@@ -309,9 +453,12 @@ async function fetchAuthToken() {
       console.log("✅ Selector de código 2FA encontrado");
 
       console.log(`📝 Escribiendo código 2FA: ${code2FA}`);
-      await page.click("#code"); // Click primero para enfocar
-      await new Promise(r => setTimeout(r, 200 + Math.random() * 300)); // Delay aleatorio
-      await page.type("#code", code2FA, { delay: 100 + Math.random() * 150 }); // Delay variable entre teclas
+      // Simular comportamiento humano para 2FA
+      await page.hover("#code");
+      await new Promise(r => setTimeout(r, 100 + Math.random() * 200));
+      await page.click("#code"); // Click para enfocar
+      await new Promise(r => setTimeout(r, 200 + Math.random() * 300));
+      await page.type("#code", code2FA, { delay: 50 + Math.random() * 50 });
       console.log("✅ Código 2FA escrito");
 
       console.log("🔍 Verificando botón de verificación 2FA: #authentication-factor-verify-page input[type='submit']");
@@ -321,24 +468,12 @@ async function fetchAuthToken() {
       }
       console.log("✅ Botón de verificación 2FA encontrado");
 
-      // Simular movimiento de mouse antes del click del 2FA
-      console.log("🖱️ Simulando movimiento de mouse para 2FA...");
-      const verifyButtonBox = await verifyButton.boundingBox();
-      if (verifyButtonBox) {
-        await page.mouse.move(
-          verifyButtonBox.x + verifyButtonBox.width * (0.3 + Math.random() * 0.4),
-          verifyButtonBox.y + verifyButtonBox.height * (0.3 + Math.random() * 0.4)
-        );
-        await new Promise(r => setTimeout(r, 100 + Math.random() * 200));
-      }
-
       console.log("🖱️ Haciendo click en botón de verificación 2FA...");
-      await page.click("#authentication-factor-verify-page input[type='submit']");
-      
-      // Esperar a que procese el 2FA
-      console.log("⏳ Esperando procesamiento de 2FA...");
-      await new Promise(r => setTimeout(r, 3000));
-      console.log("✅ 2FA completado");
+      await Promise.all([
+        page.click("#authentication-factor-verify-page input[type='submit']"),
+        page.waitForNavigation({ waitUntil: "networkidle2", timeout: 60000 }),
+      ]);
+      console.log("✅ 2FA completado, navegación exitosa");
 
       // Mostrar contenido después del 2FA
       console.log("📄 === CONTENIDO DESPUÉS DEL 2FA ===");
@@ -373,8 +508,11 @@ async function fetchAuthToken() {
     const dashboardUrl = "https://perlastore6.mitiendanube.com/admin/v2/apps/envionube/ar/dashboard";
     console.log(`🔗 URL del dashboard: ${dashboardUrl}`);
     
-    await page.goto(dashboardUrl, { waitUntil: "networkidle2" });
+    await page.goto(dashboardUrl, { waitUntil: "networkidle2", timeout: 60000 });
     console.log("✅ Dashboard cargado");
+    
+    // Verificar reCAPTCHA en el dashboard
+    await solveRecaptchaIfPresent();
 
     // Mostrar contenido del dashboard
     console.log("📄 === CONTENIDO DEL DASHBOARD ===");
@@ -420,8 +558,11 @@ async function fetchAuthToken() {
     
     if (attempts >= maxAttempts && !authHeader) {
       console.log("⚠️ Tiempo máximo de espera alcanzado, intentando refrescar la página...");
-      await page.reload({ waitUntil: "networkidle2" });
+      await page.reload({ waitUntil: "networkidle2", timeout: 60000 });
       await new Promise((r) => setTimeout(r, 3000)); // Esperar 3 segundos después del refresh
+      
+      // Verificar reCAPTCHA después del refresh
+      await solveRecaptchaIfPresent();
     }
 
     if (!authHeader) {
@@ -439,7 +580,7 @@ async function fetchAuthToken() {
       throw new Error("No se capturó ningún header Authorization");
     }
     
-    console.log("🎉 Proceso completado exitosamente");
+    console.log("🎉 Proceso completado exitosamente con técnicas anti-reCAPTCHA equilibradas");
     return authHeader;
   } catch (error) {
     console.error("💥 Error en fetchAuthToken:", error.message);
