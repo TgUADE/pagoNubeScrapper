@@ -110,7 +110,6 @@ async function fetchAuthToken() {
       '--no-report-upload',
       '--safebrowsing-disable-auto-update'
     ],
-    headless: process.env.DEBUG_MODE !== 'true' ? 'new' : false, // Si DEBUG_MODE=true, mostrar browser
     slowMo: process.env.DEBUG_MODE === 'true' ? 100 : 50 + Math.floor(Math.random() * 50), // Delay aleatorio para parecer humano
     defaultViewport: randomViewport,
     ignoreDefaultArgs: ['--disable-extensions', '--enable-automation'], // Permitir extensiones
