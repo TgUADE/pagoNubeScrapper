@@ -1,35 +1,35 @@
 [phases.setup]
-# Conservamos los auto-detectados ("...") y añadimos TODO en nixPkgs
+# paquetes auto-detectados ("...") + todas las libs de Chromium/Puppeteer en Nix
 nixPkgs = [
-  "..."             # tus otros paquetes
-  "chromium"        # para el binario de Chromium
-  "alsaLib"         # libasound2
-  "atk"             # libatk1.0-0
-  "atk_bridge"      # libatk-bridge2.0-0
-  "cups"            # libcups2
-  "gdk_pixbuf"      # libgdk-pixbuf2.0-0
-  "glib"            # libglib2.0-0
-  "gtk3"            # libgtk-3-0
-  "nspr"            # libnspr4
-  "nss"             # libnss3
-  "pango"           # libpangocairo-1.0-0
-  "libX11"          # libx11-6
-  "libX11_xcb"      # libx11-xcb1
-  "libXcomposite"   # libxcomposite1
-  "libXcursor"      # libxcursor1
-  "libXdamage"      # libxdamage1
-  "libXfixes"       # libxfixes3
-  "libXi"           # libxi6
-  "libXrandr"       # libxrandr2
-  "libXrender"      # libxrender1
-  "libXss"          # libxss1
-  "libXtst"         # libxtst6
-  "xdg_utils"       # xdg-utils
-  "fonts_liberation" # fonts-liberation
+  "...",
+  "chromium",
+  "alsaLib",
+  "atk",
+  "atk_bridge",
+  "cups",
+  "gdk_pixbuf",
+  "glib",
+  "gtk3",
+  "nspr",
+  "nss",
+  "pango",
+  "libX11",
+  "libX11_xcb",
+  "libXcomposite",
+  "libXcursor",
+  "libXdamage",
+  "libXext",
+  "libXfixes",
+  "libXi",
+  "libXrandr",
+  "libXrender",
+  "libXss",
+  "libXtst",
+  "xdg_utils",
+  "fonts_liberation",
 ]
 
-# Ya no hace falta aptPkgs para estas libs, pero lo dejamos 
-# si de verdad necesitas algo que NO esté en Nix.
+# opcional: solo si necesitas algún paquete extra vía apt
 aptPkgs = [
-  "..."  
+  "..."
 ]
